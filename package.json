@@ -9,9 +9,12 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.50.3",
     "@clerk/nextjs": "^6.19.2",
+    "@google/genai": "^0.13.0",
     "@supabase/supabase-js": "^2.49.4",
     "next": "15.3.2",
+    "openai": "^4.98.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "yarn": "^1.22.22"
