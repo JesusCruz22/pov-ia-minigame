@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 
@@ -13,8 +13,11 @@ export default function PlayPage() {
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
     const { isLoaded, user } = useUser();
+    const fetchInProgress = useRef(false);
 
     useEffect(() => {
+        if (fetchInProgress.current) return;
+        fetchInProgress.current = true;
         async function loadPrompt() {
             const res = await fetch('/api/prompts/next');
             if (res.ok) {
@@ -22,7 +25,9 @@ export default function PlayPage() {
                 setPrompt(prompt);
             }
         }
-        loadPrompt();
+        loadPrompt().finally(() => {
+            fetchInProgress.current = false;
+        });
     }, []);
 
     const addField = () => {
