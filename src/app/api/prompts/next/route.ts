@@ -5,9 +5,9 @@ import { auth } from "@clerk/nextjs/server";
 export async function GET() {
     // 1) Autenticación
     const { userId } = await auth();
-    if (!userId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // if (!userId) {
+    //     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // }
 
     // 2) Obtener todos los prompt_id ya jugados por el usuario
     const { data: usedPrompts, error: usedError } = await supabase

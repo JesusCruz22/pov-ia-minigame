@@ -64,9 +64,8 @@ export default function PlayPage() {
     };
 
     if (!isLoaded) return <p className="p-4">Cargando usuario…</p>;
-    if (!user) return <p className="p-4 text-red-600">Debes iniciar sesión para jugar.</p>;
     if (!prompt) return <p className="p-4">Cargando desafío…</p>;
-
+    
     return (
         <main className="max-w-xl mx-auto p-4">
             <h1 className="text-2xl font-bold mb-2">

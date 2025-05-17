@@ -1,4 +1,3 @@
-import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import supabase from '@/lib/supabaseClient';
 import { evaluateWithModel } from '@/lib/evaluateUtils';
@@ -13,13 +12,7 @@ interface Evaluation {
 
 export async function POST(request: Request) {
     try {
-        // 1) Autenticación
-        const { userId } = await auth();
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        // 2) Leer body
+        // Leer body
         const { matchId } = await request.json();
         if (!matchId) {
             return NextResponse.json({ error: 'matchId requerido' }, { status: 400 });
