@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useUser, SignUpButton } from '@clerk/nextjs';
 import supabase from '@/lib/supabaseClient';
-import { auth } from '@clerk/nextjs/server';
 
 type RawEvaluation = {
     id: number;
@@ -24,18 +24,24 @@ type LeaderboardEntry = {
     score: number;
 };
 
+
 export default function ResultPage() {
     const { matchId } = useParams();
     const router = useRouter();
-
+    
     const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
     const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
     const [total, setTotal] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-
+    
     // Guard para evitar dobles llamadas (por StrictMode o race conditions)
     const evalInProgress = useRef(false);
+    // User y su estado de carga
+    const { user, isLoaded } = useUser();
+    // Estado para saber si el usuario es anónimo
+    const [isAnonymous, setIsAnonymous] = useState<boolean>(false);
+    
     useEffect(() => {
         if (!matchId) return;
         if (evalInProgress.current) return;
@@ -46,19 +52,16 @@ export default function ResultPage() {
             setError(null);
 
             try {
-                console.log("matchId", matchId);
-                // 1) Comprobar si ya hay evaluaciones para esta partida
+                // Comprobar si ya hay evaluaciones para esta partida
                 const { data: existing, error: exError } = await supabase
                     .from('ai_evaluations')
                     .select('score, explanation, submitted_resources(url)')
                     .eq('match_id', matchId);
 
-                console.log("existing", existing);
-
                 if (exError) throw exError;
 
                 if (existing && existing.length === 0) {
-                    // 2) Si no existen, lanzar la evaluación automática
+                    // Si no existen, lanzar la evaluación automática
                     const resEval = await fetch('/api/evaluate', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -72,14 +75,12 @@ export default function ResultPage() {
                     setTotal(totalScore);
                 }
 
-                // 3) Volver a obtener las evaluaciones completas
+                // Volver a obtener las evaluaciones completas
                 const { data: rawEvals, error: evError } = await supabase
                     .from('ai_evaluations')
                     .select('id, score, explanation, submitted_resources(url)')
                     .eq('match_id', matchId)
                     .order('id', { ascending: true });
-
-                console.log("rawEvals", rawEvals);
 
                 if (evError) throw evError;
 
@@ -89,17 +90,29 @@ export default function ResultPage() {
                     explanation: e.explanation,
                     url: e.submitted_resources.url ?? '',
                   }));
-                  
+                
                 setEvaluations(normEvals || []);
 
-                // 4) Si no se obtuvo total en la evaluación, calcularlo localmente
+                // Si no se obtuvo total en la evaluación, calcularlo localmente
                 if (total === null) {
                     const sum = (normEvals || []).reduce((acc, e) => acc + e.score, 0);
                     setTotal(sum);
                 }
 
-                // 5) Obtener leaderboard
-                const resLeaderboard = await fetch('/api/leaderboard');
+                // Obtener leaderboard
+                let leaderboardUrl = '/api/leaderboard';
+                // Si el usuario NO está autenticado, incluir el matchId anónimo para mostrar su posición
+                const { data: matchData, error: matchError } = await supabase
+                    .from('matches')
+                    .select('user_id, is_anonymous')
+                    .eq('id', matchId)
+                    .single();
+                if (matchError) throw matchError;
+
+                const isAnon = !matchData?.user_id && matchData?.is_anonymous;
+                if (isAnon) leaderboardUrl += `?includeMatchId=${matchId}`;
+
+                const resLeaderboard = await fetch(leaderboardUrl);
                 if (resLeaderboard.ok) {
                     const { leaderboard } = await resLeaderboard.json();
                     setLeaderboard(leaderboard);
@@ -115,14 +128,22 @@ export default function ResultPage() {
         runEvaluationFlow().finally(() => {
             evalInProgress.current = false;
         });
+
+        async function checkAnon() {
+            const { data: matchData } = await supabase
+                .from('matches')
+                .select('user_id, is_anonymous')
+                .eq('id', matchId)
+                .single();
+            
+            setIsAnonymous(!matchData?.user_id && matchData?.is_anonymous);
+        }
+
+        if (matchId) checkAnon();
     }, [matchId]);
 
-    if (loading) {
-        return <p className="p-4">Evaluando tus recursos y cargando resultados…</p>;
-    }
-    if (error) {
-        return <p className="p-4 text-red-600">Error: {error}</p>;
-    }
+    if (loading) return <p className="p-4">Evaluando tus recursos y cargando resultados…</p>;
+    if (error) return <p className="p-4 text-red-600">Error: {error}</p>;
 
     return (
         <main className="max-w-2xl mx-auto p-4 space-y-6">
@@ -166,17 +187,27 @@ export default function ResultPage() {
             </section>
 
             <section className="flex gap-4">
-                <button
-                    onClick={() => router.push('/play')}
-                    className="flex-1 bg-blue-600 text-white rounded p-2"
-                >
-                    Jugar de nuevo
-                </button>
+                {isLoaded && isAnonymous ? (
+                    <SignUpButton mode="modal">
+                        <button
+                            className="flex-1 bg-blue-600 text-white rounded p-2"
+                        >
+                            Registrate para guardar tu progreso
+                        </button>
+                    </SignUpButton>
+                ) : (
+                    <button
+                        onClick={() => router.push('/play')}
+                        className="flex-1 bg-blue-600 text-white rounded p-2"
+                    >
+                        Siguiente Desafío
+                    </button>
+                )}
                 <button
                     onClick={() => router.push('/dashboard')}
                     className="flex-1 border border-blue-600 text-blue-600 rounded p-2"
                 >
-                    Ver dashboard
+                    Ir al Dashboard
                 </button>
             </section>
         </main>
